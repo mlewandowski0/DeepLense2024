@@ -1,0 +1,147 @@
+{
+    "os": "Linux-5.15.146.1-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+    "python": "3.10.12",
+    "heartbeatAt": "2024-03-10T20:29:54.049131",
+    "startedAt": "2024-03-10T20:29:53.305173",
+    "docker": null,
+    "cuda": null,
+    "args": [],
+    "state": "running",
+    "program": "<python with no main file>",
+    "codePathLocal": null,
+    "git": {
+        "remote": "git@github.com:mlewandowski0/DeepLense2024.git",
+        "commit": "ece4ede2192422669689373c190ebb1610823d06"
+    },
+    "email": "lewandowski.maciej1702@gmail.com",
+    "root": "/home/mlewand/PROJS/DeepLense2024",
+    "host": "LAPTOP-QKIQJ1VH",
+    "username": "mlewand",
+    "executable": "/bin/python3",
+    "cpu_count": 10,
+    "cpu_count_logical": 20,
+    "cpu_freq": {
+        "current": 2688.0,
+        "min": 0.0,
+        "max": 0.0
+    },
+    "cpu_freq_per_core": [
+        {
+            "current": 2688.0,
+            "min": 0.0,
+            "max": 0.0
+        },
+        {
+            "current": 2688.0,
+            "min": 0.0,
+            "max": 0.0
+        },
+        {
+            "current": 2688.0,
+            "min": 0.0,
+            "max": 0.0
+        },
+        {
+            "current": 2688.0,
+            "min": 0.0,
+            "max": 0.0
+        },
+        {
+            "current": 2688.0,
+            "min": 0.0,
+            "max": 0.0
+        },
+        {
+            "current": 2688.0,
+            "min": 0.0,
+            "max": 0.0
+        },
+        {
+            "current": 2688.0,
+            "min": 0.0,
+            "max": 0.0
+        },
+        {
+            "current": 2688.0,
+            "min": 0.0,
+            "max": 0.0
+        },
+        {
+            "current": 2688.0,
+            "min": 0.0,
+            "max": 0.0
+        },
+        {
+            "current": 2688.0,
+            "min": 0.0,
+            "max": 0.0
+        },
+        {
+            "current": 2688.0,
+            "min": 0.0,
+            "max": 0.0
+        },
+        {
+            "current": 2688.0,
+            "min": 0.0,
+            "max": 0.0
+        },
+        {
+            "current": 2688.0,
+            "min": 0.0,
+            "max": 0.0
+        },
+        {
+            "current": 2688.0,
+            "min": 0.0,
+            "max": 0.0
+        },
+        {
+            "current": 2688.0,
+            "min": 0.0,
+            "max": 0.0
+        },
+        {
+            "current": 2688.0,
+            "min": 0.0,
+            "max": 0.0
+        },
+        {
+            "current": 2688.0,
+            "min": 0.0,
+            "max": 0.0
+        },
+        {
+            "current": 2688.0,
+            "min": 0.0,
+            "max": 0.0
+        },
+        {
+            "current": 2688.0,
+            "min": 0.0,
+            "max": 0.0
+        },
+        {
+            "current": 2688.0,
+            "min": 0.0,
+            "max": 0.0
+        }
+    ],
+    "disk": {
+        "/": {
+            "total": 1006.853931427002,
+            "used": 71.77845001220703
+        }
+    },
+    "gpu": "NVIDIA GeForce RTX 3070 Ti Laptop GPU",
+    "gpu_count": 1,
+    "gpu_devices": [
+        {
+            "name": "NVIDIA GeForce RTX 3070 Ti Laptop GPU",
+            "memory_total": 8589934592
+        }
+    ],
+    "memory": {
+        "total": 7.6137237548828125
+    }
+}
