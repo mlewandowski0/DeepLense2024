@@ -1,7 +1,7 @@
 from torch.utils.data import DataLoader
 import torch.nn as nn 
 import numpy as np 
-import tqdm 
+from tqdm import tqdm 
 import torch
 from sklearn.metrics import accuracy_score, roc_auc_score
 import wandb
@@ -195,12 +195,12 @@ def run_experiment(train_dataloader : torch.utils.data.DataLoader,
     best_metric = 0 
     
     for epoch in range(epochs):
-        train(model, optimizer_, scheduler, criterion, train_dataloader=train_dataloader, epoch=epoch, WANDB_ON=WANDB_ON)
+        train(train_dataloader, model, optimizer_, scheduler, criterion, epoch=epoch, WANDB_ON=WANDB_ON, cfg=cfg)
 
-        test_res = test(model, train_dataloader)
+        test_res = test(model, train_dataloader, cfg=cfg)
         evaluation = report_metrics(test_res, epoch=epoch, prefix="train", WANDB_ON=WANDB_ON)
         
-        test_res = test(model, val_dataloader)
+        test_res = test(model, val_dataloader, cfg=cfg)
         evaluation = report_metrics(test_res, epoch=epoch, prefix="val", WANDB_ON=WANDB_ON)
 
         best_metric = save_model(model, evaluation, metric_keyword, best_metric, savepath)
