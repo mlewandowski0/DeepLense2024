@@ -20,3 +20,9 @@ mv Samples Data/Diffusion
 mv Dataset Data/Superresolution
 
 rm dataset.zip Samples.zip Dataset.zip
+
+
+gdown --fuzzy https://drive.google.com/file/d/1plYfM-jFJT7TbTMVssuCCFvLzGdxMQ4h/view
+unzip "Dataset 3B.zip"
+mv Dataset Data/Task2B
+rm "Dataset 3B.zip"

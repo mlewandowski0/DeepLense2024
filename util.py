@@ -312,8 +312,10 @@ def test_task2(model : nn.Module, val_dataset : DataLoader, cfg : CONFIG, metric
         save_images_every = test_params["save_every"]
 
     if save_images_every > 0:
-        saved_images_pred = np.zeros((number_of_datapoints // save_images_every, 150, 150, 1))
-        saved_images_true = np.zeros((number_of_datapoints // save_images_every, 150, 150, 1))
+        shape = val_dataset.dataset[0][1].shape
+        
+        saved_images_pred = np.zeros((number_of_datapoints // save_images_every, shape[1], shape[2], shape[0]))
+        saved_images_true = np.zeros((number_of_datapoints // save_images_every, shape[1], shape[2], shape[0]))
         img_c = 0
     
     # get the number of batches

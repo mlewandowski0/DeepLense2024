@@ -105,7 +105,7 @@ class DeepLenseSuperresolutionDataset(Dataset):
 
         self.class_folders = [self.LR, self.HR]
         
-
+        print(self.LR, self.HR)
         assert os.listdir(self.LR) == os.listdir(self.HR), "the number of samples in Low Resolution has to be the same as High Resolution"
 
         # get the samples 
