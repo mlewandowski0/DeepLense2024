@@ -174,6 +174,7 @@ def report_metrics(results : Dict, epoch : int, WANDB_ON : bool = True, prefix="
 def save_model(model : nn.Module, metrics_results : Dict, metric_keyword : str, best_metric : float, savepath : str):
     
     if metrics_results[metric_keyword] > best_metric:
+        print(f"Saving metric with {metric_keyword}={metrics_results[metric_keyword]} (previous : {best_metric})")
         torch.save(model.state_dict(), savepath)
         
     return max(metrics_results[metric_keyword], best_metric)
@@ -200,7 +201,7 @@ def train(train_dataloader : torch.utils.data.DataLoader,
         # Forward pass
         outputs = model(inputs.to(cfg.DEVICE))
         loss = criterion(outputs, labels.to(cfg.DEVICE))
-        
+                
         # Backward pass and optimize
         loss.backward()
         optimizer.step()
@@ -210,8 +211,16 @@ def train(train_dataloader : torch.utils.data.DataLoader,
         
         running_loss += loss.item()
         
-        if (i-1) % (train_len//10) == 0 or i == train_len:      
-            pb.set_description(f"EPOCH : {epoch}, average loss : {running_loss / i}")
+        if (i-1) % (train_len//10) == 0 or i == train_len:   
+            lr = 0
+            cnt = 0
+            for param_group in optimizer.param_groups:
+                learning_rate = param_group['lr']
+                lr += learning_rate
+                
+                cnt += 1
+               
+            pb.set_description(f"EPOCH : {epoch}, average loss : {running_loss / i}, lr={lr / cnt}")
         i += 1
     
     if WANDB_ON:
@@ -227,8 +236,9 @@ def run_experiment(train_dataloader : torch.utils.data.DataLoader,
                    optimizer : str, 
                    savepath : str,
                    cfg : CONFIG,
-                   base_lr:float=1e-4, 
-                   max_lr:float=1e-3, 
+                   saved_path_file : str = None,
+                   base_lr:float=3e-4, 
+                   min_lr:float=1e-5, 
                    scheduler_en : bool = True,
                    metric_keyword : str = "acc",
                    lr_steps : int = 1000,
@@ -240,6 +250,9 @@ def run_experiment(train_dataloader : torch.utils.data.DataLoader,
         pass
     
     model = Model(**model_parameters).to(cfg.DEVICE)
+    if saved_path_file is not None:
+        model.load_state_dict(saved_path_file)
+        print("loaded state dict!")
     
     config = {"model name" : model.__class__,
               "run name" : run_name,
@@ -248,7 +261,7 @@ def run_experiment(train_dataloader : torch.utils.data.DataLoader,
               "optimizer" : optimizer, 
               "uses scheduler" : scheduler_en,
               "base_lr" : base_lr,
-              "max_lr" : max_lr,
+              "max_lr" : min_lr,
               "lr_steps" : lr_steps}
     
     config.update(model_parameters)    
@@ -272,10 +285,7 @@ def run_experiment(train_dataloader : torch.utils.data.DataLoader,
     else:
         raise Exception("specify correctly the optimizer !")
 
-    # Set up CyclicLR scheduler
-    scheduler = None
-    if scheduler_en:
-        scheduler = lr_sched.CyclicLR(optimizer_, base_lr=base_lr, max_lr=max_lr, step_size_up=lr_steps, mode='triangular')
+    scheduler = lr_sched.CosineAnnealingLR(optimizer_,epochs, eta_min=min_lr)
 
     best_metric = 0 
     
@@ -289,6 +299,8 @@ def run_experiment(train_dataloader : torch.utils.data.DataLoader,
         evaluation = report_metrics(test_res, epoch=epoch, prefix="val", WANDB_ON=WANDB_ON)
 
         best_metric = save_model(model, evaluation, metric_keyword, best_metric, savepath)
+        
+        scheduler.step()
     
     if WANDB_ON:
         wandb.finish()
@@ -399,6 +411,7 @@ def run_experiment_task2(train_dataloader : torch.utils.data.DataLoader,
                          optimizer : str, 
                          savepath : str,
                          cfg : CONFIG,
+                         saved_path_file : str = None,
                          loss : str = "MSE",
                          test_params : Dict = {"save_in_total" : 50},
                          base_lr:float=1e-4, 
@@ -416,7 +429,10 @@ def run_experiment_task2(train_dataloader : torch.utils.data.DataLoader,
         pass
     
     model = Model(**model_parameters).to(cfg.DEVICE)
-    
+    if saved_path_file is not None:
+        model.load_state_dict(saved_path_file)
+        print("loaded state dict!")
+            
     config = {"model name" : model.__class__,
               "run name" : run_name,
               "epochs" : epochs,

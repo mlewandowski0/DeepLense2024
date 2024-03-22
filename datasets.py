@@ -2,13 +2,49 @@ import os
 import torch
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
+from typing import List
+import torchvision.transforms as transforms
 from tqdm import tqdm
 import random
+
+import torch
+import torch.functional as F
+
+
+class ApplyNoise(torch.nn.Module):
+    def __init__(self, mean, std, clip_min=0, clip_max=1):
+        super().__init__()
+        self.mean = mean
+        self.std = std
+        self.clip_min = torch.Tensor([clip_min])
+        self.clip_max = torch.Tensor([clip_max])
+
+    def forward(self, tensor: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            tensor (Tensor): Tensor image for which we apply noise.
+
+        Returns:
+            Tensor: noised Tensor image.
+        """
+        return torch.max( 
+                         torch.min(tensor + self.std * torch.randn_like(tensor) + self.mean, 
+                                   self.clip_max
+                                   )
+                         , 
+                         self.clip_min)
+
+
+    def __repr__(self):
+        return self.__class__.__name__ + '(mean={0}, std={1}), range=[{2},{3}]'.format(self.mean, self.std, self.clip_min, self.clip_max)
+
+
 
 class DeepLenseClassificationDataset(Dataset):
 
     def __init__(self, folder_path : str, randomize_dataset : bool = True,
-                 preprocess_dataset : bool = True, data_limit=0, mean=None, std=None) -> None:
+                 preprocess_dataset : bool = True, data_limit=0, mean=None, std=None,
+                 transforms : List[torch.nn.Module]=None) -> None:
         self.folder_path = folder_path
         self.paths = []
         
@@ -23,6 +59,10 @@ class DeepLenseClassificationDataset(Dataset):
         self.filepaths = []
         self.classes = []
         self.dataset = []
+        self.transforms = transforms
+        #if transforms is not None:
+        #    self.transforms = torch.jit.script(transforms)
+
         
         # craete the classes and filepath arrays
         for class_, class_folder in enumerate(self.class_folders):
@@ -79,7 +119,12 @@ class DeepLenseClassificationDataset(Dataset):
         return len(self.filepaths)
 
     def __getitem__(self, idx):
-        return self.dataset[idx], self.classes[idx] 
+        
+        data = self.dataset[idx]
+        if self.transforms is not None:
+            data = self.transforms(data)
+        
+        return data, self.classes[idx] 
     
     
 class DeepLenseSuperresolutionDataset(Dataset):
