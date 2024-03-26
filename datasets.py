@@ -82,7 +82,7 @@ class DeepLenseClassificationDataset(Dataset):
         # load the dataset
         for filepath in tqdm(self.filepaths, desc="loading numpy"):
             datapoint = np.load(filepath)
-            self.dataset.append(datapoint)            
+            self.dataset.append(datapoint.transpose(1, 2, 0))            
             
         if randomize_dataset:
             self.randomize_dataset()
@@ -101,7 +101,7 @@ class DeepLenseClassificationDataset(Dataset):
             for i in tqdm(range(len(self.dataset)), desc="preprocessing"):
                 self.dataset[i] = self.preprocess_single(self.dataset[i])
 
-        self.dataset = torch.stack(self.dataset)
+            self.dataset = torch.stack(self.dataset)
 
 
     def randomize_dataset(self):
@@ -122,7 +122,7 @@ class DeepLenseClassificationDataset(Dataset):
         
         data = self.dataset[idx]
         if self.transforms is not None:
-            data = self.transforms(data)
+            data = self.transforms(image=data)["image"]
         
         return data, self.classes[idx] 
     

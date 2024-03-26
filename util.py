@@ -131,28 +131,29 @@ def test(model : nn.Module, val_dataset : DataLoader, cfg : CONFIG,   run = None
 
     # variable that will track where we are in terms of all data (after iteration add batch size to it)
     c = 0
-    for i, (x,y) in enumerate(pbar): 
-        # get the predictions
-        pred = model(x.to(cfg.DEVICE))
- 
-        # get the batch size
-        bs = x.shape[0]
+    with torch.autocast(device_type="cuda"):
+        for i, (x,y) in enumerate(pbar): 
+            # get the predictions
+            pred = model(x.to(cfg.DEVICE))
+    
+            # get the batch size
+            bs = x.shape[0]
 
-        true_values[c : (c + bs)] = y.detach().numpy()
-        predictions_prob[c : (c + bs)] = torch.softmax(pred.cpu().detach(), dim=1).numpy()
-        predictions[c : (c + bs)] = torch.argmax(pred, 1).cpu().detach().numpy()
-        c += bs 
-           
-        if i % (dataset_len//10) == 0 or i == dataset_len -1:
-            acc = accuracy_score(predictions[:c], true_values[:c])
-            try:
-                roc_auc = roc_auc_score(true_values[:c], predictions_prob[:c, :], multi_class='ovr')            
+            true_values[c : (c + bs)] = y.detach().numpy()
+            predictions_prob[c : (c + bs)] = torch.softmax(pred.cpu().detach(), dim=1).numpy()
+            predictions[c : (c + bs)] = torch.argmax(pred, 1).cpu().detach().numpy()
+            c += bs 
             
-            # It can happen at the beginning
-            except Exception as e:
-                roc_auc = 0
+            if i % (dataset_len//10) == 0 or i == dataset_len -1:
+                acc = accuracy_score(predictions[:c], true_values[:c])
+                try:
+                    roc_auc = roc_auc_score(true_values[:c], predictions_prob[:c, :], multi_class='ovr')            
+                
+                # It can happen at the beginning
+                except Exception as e:
+                    roc_auc = 0
 
-            pbar.set_description(f"examples seen so far : {c}, accuracy = {round(acc, cfg.ROUND_NUMBER)}, AUC ROC = {round(roc_auc, CONFIG.ROUND_NUMBER)}")
+                pbar.set_description(f"examples seen so far : {c}, accuracy = {round(acc, cfg.ROUND_NUMBER)}, AUC ROC = {round(roc_auc, CONFIG.ROUND_NUMBER)}")
     
     return {"predition_prob" : predictions_prob, "predictions" : predictions, "true" : true_values}
 
@@ -193,35 +194,37 @@ def train(train_dataloader : torch.utils.data.DataLoader,
     train_len = len(train_dataloader)
     
     pb = tqdm(train_dataloader)
-    for inputs, labels in pb:
-        
-        # Zero the parameter gradients
-        optimizer.zero_grad()
-        
-        # Forward pass
-        outputs = model(inputs.to(cfg.DEVICE))
-        loss = criterion(outputs, labels.to(cfg.DEVICE))
+    with torch.autocast(device_type="cuda"):
+        for inputs, labels in pb:
+            
+            # Zero the parameter gradients
+            optimizer.zero_grad()
+            
+            
+            # Forward pass
+            outputs = model(inputs.to(cfg.DEVICE))
+            loss = criterion(outputs, labels.to(cfg.DEVICE))
+                    
+            # Backward pass and optimize
+            loss.backward()
+            optimizer.step()
+            
+            if scheduler is not None:
+                scheduler.step()  # Update learning rate
+            
+            running_loss += loss.item()
+            
+            if (i-1) % (train_len//10) == 0 or i == train_len:   
+                lr = 0
+                cnt = 0
+                for param_group in optimizer.param_groups:
+                    learning_rate = param_group['lr']
+                    lr += learning_rate
+                    
+                    cnt += 1
                 
-        # Backward pass and optimize
-        loss.backward()
-        optimizer.step()
-        
-        if scheduler is not None:
-            scheduler.step()  # Update learning rate
-        
-        running_loss += loss.item()
-        
-        if (i-1) % (train_len//10) == 0 or i == train_len:   
-            lr = 0
-            cnt = 0
-            for param_group in optimizer.param_groups:
-                learning_rate = param_group['lr']
-                lr += learning_rate
-                
-                cnt += 1
-               
-            pb.set_description(f"EPOCH : {epoch}, average loss : {running_loss / i}, lr={lr / cnt}")
-        i += 1
+                pb.set_description(f"EPOCH : {epoch}, average loss : {running_loss / i}, lr={lr / cnt}")
+            i += 1
     
     if WANDB_ON:
         wandb.log({"loss" : running_loss/len(train_dataloader)})
