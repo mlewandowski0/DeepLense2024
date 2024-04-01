@@ -7,6 +7,7 @@ Solution notebooks can be found in [solutions/](solutions/), more particularly :
 - [solutions/task2B_solution.ipynb](solutions/task2B_solution.ipynb) contain solution notebook for superresolution of task 2B
 
 
+## Reports
 the trained models can be found [here](https://drive.google.com/drive/folders/19X6Ft8tziwNS07nP3hlG1-Av08SD-hvP?usp=sharing). The table of all results can be found (with images) on wandb : 
 - Task 1 : https://wandb.ai/mlewand7/DeepLense2024_task1/reports/Task-1--Vmlldzo3Mzc0MTM0?accessToken=wo6ykwc6a7qavmv3pznwp51qvrijsihtnfxvawgd8jbs8zaxzlg5sb9ws233yuyc
 - Task 2A : https://api.wandb.ai/links/mlewand7/r5r39z7u
