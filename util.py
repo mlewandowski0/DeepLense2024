@@ -16,6 +16,10 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from pytorch_msssim import ssim, ms_ssim, SSIM, MS_SSIM
 
+def psnr(raw_image: np.ndarray, dst_image: np.ndarray) -> float:
+    psnr_metrics = 10 * torch.log10((255.0 ** 2) / torch.mean((raw_image - dst_image) ** 2) + 1e-8)
+    return psnr_metrics
+
 ###############################################################################33
 # Metrics
 class Metric: 
@@ -33,7 +37,7 @@ class MSE_Metric(Metric):
         self.average = True
         
     def eval(self, y_pred : torch.Tensor, y : torch.Tensor) -> float:
-        return torch.mean((y_pred.cpu() - y.cpu())**2).item()
+        return (torch.mean((y_pred - y)**2)).cpu().item()
     
 class PSNR_Metric(Metric):
     def __init__(self, crop_border=0) -> None:
@@ -43,7 +47,7 @@ class PSNR_Metric(Metric):
         self.average = True
         
     def eval(self, y_pred : torch.Tensor, y : torch.Tensor) -> float:   
-        return psnr(255*y_pred.detach().cpu().numpy(), 255*y.detach().cpu().numpy())
+        return psnr(255.*y_pred, 255.*y).cpu().item()
     
 class SSIM_Metric(Metric):
     def __init__(self) -> None:
@@ -52,7 +56,7 @@ class SSIM_Metric(Metric):
         self.average = True
     
     def eval(self, y_pred : torch.Tensor, y : torch.Tensor) -> float:
-        return ssim(y_pred.detach().cpu(), y.detach().cpu(), data_range=1)
+        return ssim(y_pred, y, data_range=1).cpu().item()
 
 ###############################################################################33
 # utilities
@@ -101,11 +105,6 @@ def _check_image(raw_image: np.ndarray, dst_image: np.ndarray):
     # check image type
     if raw_image.dtype != dst_image.dtype:
         warnings.warn(f"Supplied images have different dtypes{str(raw_image.shape)} and {str(dst_image.shape)}")
-
-
-def psnr(raw_image: np.ndarray, dst_image: np.ndarray) -> float:
-    psnr_metrics = 10 * np.log10((255.0 ** 2) / np.mean((raw_image - dst_image) ** 2) + 1e-8)
-    return psnr_metrics
 
 ###############################################################################33
 # training/testing/reporting    
@@ -187,6 +186,7 @@ def train(train_dataloader : torch.utils.data.DataLoader,
           criterion, 
           epoch : int, 
           cfg : CONFIG,
+          categorical_cast : bool  = True,
           WANDB_ON : bool=True):
     model.train()
     
@@ -200,8 +200,11 @@ def train(train_dataloader : torch.utils.data.DataLoader,
         optimizer.zero_grad()
         
         inputs = inputs.to(cfg.DEVICE).float()
-        labels = labels.to(cfg.DEVICE).long()
-
+        if categorical_cast:
+            labels = labels.to(cfg.DEVICE).long()
+        else:
+            labels = labels.to(cfg.DEVICE).float()
+        
         #with torch.autocast(device_type="cuda"):
         # Forward pass
         outputs = model(inputs)
@@ -210,10 +213,7 @@ def train(train_dataloader : torch.utils.data.DataLoader,
         # Backward pass and optimize
         loss.backward()
         optimizer.step()
-            
-        if scheduler is not None:
-            scheduler.step()  # Update learning rate
-            
+                       
         running_loss += loss.item()
             
         if (i-1) % (train_len//10) == 0 or i == train_len:   
@@ -242,8 +242,8 @@ def run_experiment(train_dataloader : torch.utils.data.DataLoader,
                    savepath : str,
                    cfg : CONFIG,
                    saved_path_file : str = None,
-                   base_lr:float=3e-4, 
                    min_lr:float=1e-5, 
+                   cosine_annealer_epochs=20,
                    scheduler_en : bool = True,
                    metric_keyword : str = "acc",
                    lr_steps : int = 1000,
@@ -255,8 +255,8 @@ def run_experiment(train_dataloader : torch.utils.data.DataLoader,
         pass
     
     model = Model(**model_parameters).to("cuda")
-    if saved_path_file is not None:
-        model.load_state_dict(saved_path_file)
+    if saved_path_file is not None and os.path.exists(saved_path_file):
+        model.load_state_dict(torch.load(saved_path_file))
         print("loaded state dict!")
     
     config = {"model name" : model.__class__,
@@ -265,8 +265,7 @@ def run_experiment(train_dataloader : torch.utils.data.DataLoader,
               "learning rate" : learning_rate,
               "optimizer" : optimizer, 
               "uses scheduler" : scheduler_en,
-              "base_lr" : base_lr,
-              "max_lr" : min_lr,
+              "min_lr" : min_lr,
               "lr_steps" : lr_steps}
     
     config.update(model_parameters)    
@@ -290,26 +289,29 @@ def run_experiment(train_dataloader : torch.utils.data.DataLoader,
     else:
         raise Exception("specify correctly the optimizer !")
 
-    scheduler = lr_sched.CosineAnnealingLR(optimizer_,epochs, eta_min=min_lr)
+    if scheduler_en:
+        scheduler = lr_sched.CosineAnnealingLR(optimizer_, cosine_annealer_epochs, eta_min=min_lr)
 
     best_metric = 0 
+    class_labels = val_dataloader.dataset.class_names
     
     for epoch in range(epochs):
         train(train_dataloader, model, optimizer_, scheduler, criterion, epoch=epoch, WANDB_ON=WANDB_ON, cfg=cfg)
 
         test_res = test(model, train_dataloader, cfg=cfg)
-        evaluation = report_metrics(test_res, epoch=epoch, prefix="train", WANDB_ON=WANDB_ON)
+        evaluation = report_metrics(test_res, epoch=epoch, class_labels=class_labels, prefix="train", WANDB_ON=WANDB_ON)
             
         test_res = test(model, val_dataloader, cfg=cfg)
-        evaluation = report_metrics(test_res, epoch=epoch, prefix="val", WANDB_ON=WANDB_ON)
+        evaluation = report_metrics(test_res, epoch=epoch, class_labels=class_labels, prefix="val", WANDB_ON=WANDB_ON)
 
         best_metric = save_model(model, evaluation, metric_keyword, best_metric, savepath)
             
-        scheduler.step()
+        if scheduler_en:
+            scheduler.step()
     
     if WANDB_ON:
         wandb.finish()
-        
+       
 def test_task2(model : nn.Module, val_dataset : DataLoader, cfg : CONFIG, metrics : List[Metric], test_params : Dict[str, int] = {"save_in_total" : None, "save_every" : 0} ,  run = None):        
     # change the model to evaluation
     model.eval()
@@ -346,6 +348,7 @@ def test_task2(model : nn.Module, val_dataset : DataLoader, cfg : CONFIG, metric
     for i, (x,y) in enumerate(pbar): 
         # get the predictions
         pred = model(x.to(CONFIG.DEVICE))
+        y = y.to(CONFIG.DEVICE)
  
         # get the batch size
         bs = x.shape[0]
@@ -354,8 +357,8 @@ def test_task2(model : nn.Module, val_dataset : DataLoader, cfg : CONFIG, metric
         for img_i in range(bs):
             y_pred, y_ = pred[img_i], y[img_i]
             for j, metric in enumerate(metrics):
-                metrics_vals[c, j] = metric.eval(torch.stack([y_pred.cpu()]), torch.stack([y_.cpu()]))
-                
+                metrics_vals[c, j] = metric.eval(torch.stack([y_pred]), torch.stack([y_]))
+                                    
             if save_images_every > 0 and c % save_images_every == 0:
                 saved_images_pred[img_c] = y_pred.detach().cpu().numpy().transpose(1, 2, 0)
                 saved_images_true[img_c] = y_.detach().cpu().numpy().transpose(1, 2, 0)
@@ -419,8 +422,8 @@ def run_experiment_task2(train_dataloader : torch.utils.data.DataLoader,
                          saved_path_file : str = None,
                          loss : str = "MSE",
                          test_params : Dict = {"save_in_total" : 50},
-                         base_lr:float=1e-4, 
-                         max_lr:float=1e-3, 
+                         min_lr:float=5e-5, 
+                         cosine_annealer_epochs=20,
                          metrics : List[Metric] = [MSE_Metric(), PSNR_Metric(), SSIM_Metric()],
                          scheduler_en : bool = True,
                          metric_keyword : str = "acc",
@@ -444,8 +447,8 @@ def run_experiment_task2(train_dataloader : torch.utils.data.DataLoader,
               "learning rate" : learning_rate,
               "optimizer" : optimizer, 
               "uses scheduler" : scheduler_en,
-              "base_lr" : base_lr,
-              "max_lr" : max_lr,
+              "cosine_annealer_epochs" : cosine_annealer_epochs,
+              "max_lr" : min_lr,
               "lr_steps" : lr_steps}
     
     config.update(model_parameters)    
@@ -475,7 +478,7 @@ def run_experiment_task2(train_dataloader : torch.utils.data.DataLoader,
     # Set up CyclicLR scheduler
     scheduler = None
     if scheduler_en:
-        scheduler = lr_sched.CyclicLR(optimizer_, base_lr=base_lr, max_lr=max_lr, step_size_up=lr_steps, mode='triangular')
+        scheduler = lr_sched.CosineAnnealingLR(optimizer_, cosine_annealer_epochs, eta_min=min_lr)
 
     best_metric = 0 
     
@@ -489,7 +492,7 @@ def run_experiment_task2(train_dataloader : torch.utils.data.DataLoader,
 
 
     for epoch in range(epochs):
-        train(train_dataloader, model, optimizer_, scheduler, criterion, epoch=epoch, WANDB_ON=WANDB_ON, cfg=cfg)
+        train(train_dataloader, model, optimizer_, scheduler, criterion, categorical_cast=False, epoch=epoch, WANDB_ON=WANDB_ON, cfg=cfg)
 
         test_res = test_task2(model, train_dataloader, cfg=cfg, test_params=test_params,  metrics=metrics)
         evaluation = report_metrics_task2(test_res, epoch=epoch, metrics=metrics, prefix="train", WANDB_ON=WANDB_ON)
@@ -498,6 +501,8 @@ def run_experiment_task2(train_dataloader : torch.utils.data.DataLoader,
         evaluation = report_metrics_task2(test_res, epoch=epoch, metrics=metrics, prefix="val", WANDB_ON=WANDB_ON)
 
         best_metric = save_model(model, evaluation, metric_keyword, best_metric, savepath)
+
+        scheduler.step()
     
     if WANDB_ON:
         wandb.finish()
